@@ -1,48 +1,57 @@
-const WebSocket = require("ws");
-const http = require("http");
 const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const io = new Server(server, {
+	cors: {
+		origin: "*",
+	},
+});
 
 const PORT = process.env.PORT || 4009;
 
 const clients = new Map();
 
-wss.on("connection", (ws) => {
-    ws.on("message", async (message) => {
-        const parsedMessage = JSON.parse(message);
+io.on("connection", (socket) => {
+	socket.on("message", async (message) => {
+		const parsedMessage = message;
 
-        if (parsedMessage.category === "Login") {
-            const { uid, room } = parsedMessage;
+		if (parsedMessage.category === "Login") {
+            console.log("someone logged in")
+			const { uid, room } = parsedMessage;
 
-            clients.set(uid, { ws, room, uid });
+			clients.set(uid, { socket, room, uid });
 
-            wss.clients.forEach(function (client) {
-                if (client != ws)
-                    client.send(JSON.stringify({ category: "MemberJoined", type: "", uid: uid, room: room }));
-            });
-        }
+			socket.broadcast.emit("message", {
+				category: "MemberJoined",
+				type: "",
+				uid: uid,
+				room: "/",
+			});
+		}
 
-        if (parsedMessage.type === "offer" || parsedMessage.type === "answer" || parsedMessage.type === "candidate") {
-            const room = parsedMessage.room;
+		if (
+			parsedMessage.type === "offer" ||
+			parsedMessage.type === "answer" ||
+			parsedMessage.type === "candidate"
+		) {
 
-            wss.clients.forEach(function (client) {
-                if (client != ws) client.send(JSON.stringify(parsedMessage));
-            });
-        }
-    });
+			socket.broadcast.emit("message", parsedMessage);
+		}
+	});
 
-    ws.on("close", () => {
-        for (const [key, value] of clients.entries()) {
-            if (value.ws === ws) {
-                clients.delete(key);
-                break;
-            }
-        }
-    });
+	socket.on("disconnect", () => {
+		for (const [key, value] of clients.entries()) {
+			if (value.socket === socket) {
+				clients.delete(key);
+				break;
+			}
+		}
+	});
 });
 
 server.listen(PORT, () => {
-    console.log(`Server started on port ${PORT} :)`);
+	console.log(`Server started on port ${PORT} :)`);
 });

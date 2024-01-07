@@ -1,0 +1,1 @@
+export type ServerMode = 'classic' | 'whip';

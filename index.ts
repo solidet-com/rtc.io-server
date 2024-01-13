@@ -8,11 +8,10 @@ import {
     RemoteSocket,
     Event,
 } from "socket.io";
-import { addDefaultListeners } from "./lib/defaulthandlers";
 
 interface ServerOptions extends RootServerOptions {}
 
-export class Server extends RootServer {
+class Server extends RootServer {
     constructor(opts?: Partial<ServerOptions>) {
         super(opts);
     }
@@ -24,14 +23,4 @@ export class Server extends RootServer {
     }
 }
 
-export {
-    ServerOptions,
-    BroadcastOperator,
-    RemoteSocket,
-    Event,
-    Namespace,
-    DisconnectReason,
-    Socket,
-    addDefaultListeners,
-};
-export default Server;
+export { Server, ServerOptions, BroadcastOperator, RemoteSocket, Event, Namespace, DisconnectReason, Socket };

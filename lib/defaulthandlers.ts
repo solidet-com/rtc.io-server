@@ -13,8 +13,10 @@ function rtcCandiateHandler(socket: Socket, data: MessagePayload<RTCIceCandidate
     socket.to(data.target).emit("#candidate", data);
 }
 
-export function addDefaultListeners(socket: Socket) {
+function addDefaultListeners(socket: Socket) {
     socket.on("#offer", (data) => rtcOfferHandler(socket, data));
     socket.on("#answer", (data) => rtcAnswerHandler(socket, data));
     socket.on("#candidate", (data) => rtcCandiateHandler(socket, data));
 }
+
+export { addDefaultListeners };

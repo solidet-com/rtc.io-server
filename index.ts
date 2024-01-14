@@ -20,7 +20,6 @@ export class Server extends RootServer {
     }
 
     listen(port: number, opts?: Partial<ServerOptions>): this {
-        console.log("extended listen method");
 
         const options = {
             rtcHttpServerPort: port || 3000,
@@ -28,7 +27,7 @@ export class Server extends RootServer {
         };
 
         const server = whipManager(options);
-
+        this.attach(server);
         return this;
     }
 }

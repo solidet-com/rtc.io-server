@@ -2,13 +2,12 @@
   "name": "rtc.io-server",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/index.js",
+  "main": "index.ts",
   "directories": {
     "lib": "lib"
   },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
     "dev": "nodemon --watch '*/.ts' --exec 'ts-node' ./index.ts"
   },
   "author": "",

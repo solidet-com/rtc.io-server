@@ -1,12 +1,14 @@
 import express, { Request, Response } from "express";
 import { createServer } from "http";
 import { ServerOptions } from "..";
-const bodyParser = require('body-parser');
+import BodyParser from 'body-parser'
 const url = require('url');
-const { RTCPeerConnection, RTCRtpCodecParameters, MediaStream } = require('werift');
+const cors = require('cors')
 
+const { RTCPeerConnection, RTCRtpCodecParameters, MediaStream } = require('werift');
 const app = express();
-app.use(bodyParser.raw({ type: 'application/sdp' }));
+app.use(BodyParser.raw({ type: 'application/sdp' }));
+
 
 const peerConnections = new Map();
 const tracks:any[] = [];
@@ -19,15 +21,13 @@ const rooms = new Map();
 export function whipManager(options: WhipManagerOptions = {}) {
   const { rtcHttpServerPort, socketIoServerOptions = {} } = options;
 
-
+  app.use(cors())
   app.get('/', (req, res) => {
     res.status(405).end();
   });
   
   app.post('/:id?', async (req, res) => {
     const id = req.params.id || '';
-    console.log("get id")
-    console.log(id)
     const body = req.body;
     const authorizationHeader = req.headers["authorization"];
     
@@ -36,7 +36,7 @@ export function whipManager(options: WhipManagerOptions = {}) {
     const servers = {
       iceServers: [
         {
-          urls: ["stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"],
+          urls: ["stun:stun.l.google.com:19302"],
         },
       ],
     };
@@ -45,14 +45,15 @@ export function whipManager(options: WhipManagerOptions = {}) {
         audio: [
           new RTCRtpCodecParameters({
             mimeType: "audio/opus",
-            clockRate: 48000,
+            clockRate: 160,
             channels: 2,
           }),
         ],
         video: [
           new RTCRtpCodecParameters({
             mimeType: "video/H264",
-            clockRate: 90000,
+            clockRate:90000,
+            channels:2,
             rtcpFeedback: [
               { type: "nack" },
               { type: "nack", parameter: "pli" },
@@ -68,43 +69,45 @@ export function whipManager(options: WhipManagerOptions = {}) {
     };
   
     if (id !== '') {
-      // Handle case for creating an answer
-      for (const track of tracks) {
-          console.log("id is not null")
-          console.log(track.stream)
-        if (track.stream.id !== id) {
-          continue;
-        }
-       // console.log(`Adding track: ${track.id}`);
-        await peerConnection.addTransceiver(track, { direction: 'sendonly' });
+      //console.log("in first if")
+     // console.log(id)
+      if(!rooms.has(id)) rooms.set(id, [])
+  
+    
+  
+      for (const track of rooms.get(id)) {
+        //  console.log("id is not null")
+        //  console.log(track.kind)
+          peerConnection.addTransceiver(track, { direction: 'sendonly' });
       }
     } else {
       if (!authorizationHeader) {
-          // Handle the case where the header is not present
           return res.status(401).json({ error: "Authorization header missing" });
         }
-      
-        const streamRoom=req.headers["authorization"]?.split("Bearer ")[1]
-      // Handle case for creating an offer
-      peerConnection.ontrack = (event: { track: { streamId: string | undefined; onended: () => void; }; }) => {
-       // console.log(`Got track: ${event.track.id}`);
-        tracks.push(event.track);
-        console.log(event.track)
-        console.log("stream room")
-        console.log(streamRoom)
-        event.track.streamId=streamRoom
-        const trackIndex = tracks.indexOf(event.track);
-        event.track.onended = () => {
-          tracks.splice(trackIndex, 1);
+        const streamRoom=req.headers["authorization"]?.split("Bearer ")[1]||""
+  
+      peerConnection.ontrack = (event: { track: any; }) => {
+       const track=event.track
+       console.log("TRACK GELDİ")
+  
+       //console.log("id in ontrack")
+       //console.log(streamRoom)
+       if(!rooms.has(streamRoom)) rooms.set(streamRoom,[track])
+       else rooms.get(streamRoom).push(track)
+      // console.log("check track streamID")
+        const trackIndex = rooms.get(streamRoom).indexOf(track);
+        track.onended = () => {
+          console.log("TRACK ON ENDDD")
+          rooms.get(streamRoom).splice(trackIndex,1)
         };
   
         const stream = new MediaStream();
-        stream.addTrack(event.track);
+        stream.addTrack(track);
       };
     }
   
     const gatherComplete = new Promise<void>(resolve => {
-      peerConnection.onicegatheringstatechange = (event: { target: { iceGatheringState: string; }; }) => {
+      peerConnection.onicegatheringstatechange = (event: { target: { iceGatheringState: any; }; }) => {
         if (event.target.iceGatheringState === 'complete') {
           resolve();
         }
@@ -114,41 +117,37 @@ export function whipManager(options: WhipManagerOptions = {}) {
     if (body.length > 0) {
       //console.log(body);
       const offer = { type: 'offer', sdp: body.toString() };
-      console.log("Received offer:");
-      //console.log(offer.sdp);
       await peerConnection.setRemoteDescription(offer);
-  
       const answer = await peerConnection.createAnswer();
-      console.log("Created answer:");
-     // console.log(answer.sdp);
-  
       await peerConnection.setLocalDescription(answer);
     } else {
       const offer = await peerConnection.createOffer();
-      console.log("Created offer:");
-      //console.log(offer.sdp);
       await peerConnection.setLocalDescription(offer);
     }
   
-    //await gatherComplete;
   
     const pcid = generateUUID();
   
     res.setHeader('Content-Type', 'application/sdp');
-    
+    peerConnections.set(pcid, peerConnection);
   
-    console.log("Sending answer:");
-    //console.log(peerConnection.localDescription.sdp);
-    console.log("sent res")
-    //console.log(res)
+    if(id!=="")
     res.status(201)
     .set('Content-Type', 'application/sdp')
     .set('Access-Control-Allow-Origin', '*')
     .set('Access-Control-Allow-Headers', '*')
     .set('Location', `http://${req.headers.host}/${pcid}`)
-    .send(peerConnection.localDescription.sdp);
+    .json({answer:peerConnection.localDescription.sdp, location: `http://${req.headers.host}/${pcid}`});
+    else{
+      res.status(201)
+    .set('Content-Type', 'application/sdp')
+    .set('Access-Control-Allow-Origin', '*')
+    .set('Access-Control-Allow-Headers', '*')
+    .set('Location', `http://${req.headers.host}/${pcid}`)
+    .end(peerConnection.localDescription.sdp);
+    }
   
-    peerConnections.set(pcid, peerConnection);
+  //console.log("END OF REQUEST")
   });
   
   app.patch('/:id', (req, res) => {
@@ -159,9 +158,10 @@ export function whipManager(options: WhipManagerOptions = {}) {
   
     const id = req.params.id;
     const peerConnection = peerConnections.get(id);
-  
+  //console.log("patch geldi")
     if (!peerConnection) {
-      res.status(404).end();
+     // console.log("hata aldım pc yok")
+      res.status(400).end();
       return;
     }
   
@@ -171,7 +171,8 @@ export function whipManager(options: WhipManagerOptions = {}) {
     }).on('end', async () => {
       const answer = { type: 'answer', sdp: Buffer.concat(body).toString() };
       await peerConnection.setRemoteDescription(answer);
-      res.end();
+  res.end();
+  
     });
   });
   
@@ -188,6 +189,7 @@ export function whipManager(options: WhipManagerOptions = {}) {
     peerConnections.delete(id);
     res.end();
   });
+  
 
   const server = createServer(app);
 

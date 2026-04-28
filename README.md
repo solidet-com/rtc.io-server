@@ -21,12 +21,9 @@ server.on("connection", (socket) => {
     socket.to(roomId).emit("#rtcio:init-offer", { source: socket.id });
   });
 
-  socket.on("disconnecting", () => {
-    socket.rooms.forEach((roomId) => {
-      if (roomId === socket.id) return;
-      socket.to(roomId).emit("user-disconnected", { id: socket.id });
-    });
-  });
+  // No `disconnecting` handler needed for peer cleanup — the rtc.io-server
+  // core emits `#rtcio:peer-left` automatically. Add one only if you have
+  // app-level cleanup (presence rosters, room password registries, etc.).
 });
 
 server.listen(3001);
@@ -34,7 +31,12 @@ server.listen(3001);
 
 ## What this server does
 
-The rtc.io client multiplexes all WebRTC signaling (offers, answers, ICE candidates, stream metadata) into a single `#rtcio:message` event. This server registers a default handler for that event and relays it to the addressed peer (`socket.to(target).emit(...)`). Everything else — room management, app-level events, presence — is **your** code.
+The rtc.io client multiplexes all WebRTC signaling (offers, answers, ICE candidates, stream metadata) into a single `#rtcio:message` event. This server registers default handlers that:
+
+1. Relay `#rtcio:message` envelopes to the addressed peer (`socket.to(target).emit(...)`).
+2. Emit a `#rtcio:peer-left` notification to a leaving socket's rooms on `disconnecting`, so existing peers can short-circuit ICE consent-freshness (~30 s) when a tab closes. The client treats this as a hint that's cross-checked against the local WebRTC state; it never tears down a healthy P2P call on the basis of a signaling-only event. See the [signaling protocol](https://docs.rtcio.dev/docs/server/protocol#rtciopeer-left) for the full contract.
+
+Everything else — room management, app-level events, presence — is **your** code.
 
 ### What you implement
 

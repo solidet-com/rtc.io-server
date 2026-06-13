@@ -1,6 +1,6 @@
 {
   "name": "rtc.io-server",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Signaling server for the rtc.io WebRTC client. Built on socket.io.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,22 +17,23 @@
     "server"
   ],
   "license": "MIT",
-  "author": "",
+  "author": "solidet-com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/<your-org>/rtc.io.git",
+    "url": "git+https://github.com/solidet-com/rtc.io.git",
     "directory": "rtc.io-server"
   },
   "bugs": {
-    "url": "https://github.com/<your-org>/rtc.io/issues"
+    "url": "https://github.com/solidet-com/rtc.io/issues"
   },
-  "homepage": "https://github.com/<your-org>/rtc.io#readme",
+  "homepage": "https://docs.rtcio.dev",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc",
+    "typecheck": "tsc --noEmit",
     "dev": "nodemon --watch '**/*.ts' --exec 'ts-node' ./index.ts",
     "prepack": "npm run build"
   },
